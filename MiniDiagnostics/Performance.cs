@@ -20,6 +20,7 @@ namespace MiniDiagnostics
         internal static Lazy<PerformanceCounter> Ram { get; } = new Lazy<PerformanceCounter>(
             () => new PerformanceCounter("Memory", "Available Bytes", true), LazyThreadSafetyMode.ExecutionAndPublication);
 
+
         /// <summary>
         ///     % of overall CPU time. The first readout is always zero.
         /// </summary>
