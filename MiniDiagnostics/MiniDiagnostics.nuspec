@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>MiniDiagnostics</id>
+    <version>1.0.0</version>
+    <authors>Piotr Falkowski</authors>
+    <owners>Piotr Falkowski</owners>
+    <licenseUrl>http://opensource.org/licenses/MIT</licenseUrl>
+    <projectUrl>https://github.com/PFalkowski/MiniDiagnostics</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <releaseNotes>Initial release</releaseNotes>
+    <description>Get CPU and RAM usage, check process name and whether it's elevated etc.</description>
+    <copyright>Copyright ©2018 Piotr Falkowski</copyright>
+    <tags>CPU usage RAM performance admin elevated drive info</tags>
+    <dependencies>
+      <dependency id="Extensions.Standard" version="2.0.0" />
+    </dependencies>
+  </metadata>
+  <files>
+	<file src="bin\Release\MiniDiagnostics.dll" target="lib\net471"></file>
+  </files>
+</package>

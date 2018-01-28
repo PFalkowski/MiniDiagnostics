@@ -55,6 +55,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="Package.nuspec" />
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -65,4 +66,10 @@
     <Content Include="Readme.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>if not ($(Configuration)) == (Release) GOTO END
+if not exist "$(ProjectDir)lib\" mkdir "$(ProjectDir)lib\"
+xcopy "$(ProjectDir)bin\Release\MiniDiagnostics.dll" "$(ProjectDir)lib" /b/v/y
+:END</PostBuildEvent>
+  </PropertyGroup>
 </Project>
