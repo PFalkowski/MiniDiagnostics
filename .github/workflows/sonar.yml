@@ -43,7 +43,7 @@ jobs:
       - name: Begin Sonar analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: $SONAR_TOKEN
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           dotnet-sonarscanner begin `
             /k:"PFalkowski_MiniDiagnostics" `
@@ -61,5 +61,5 @@ jobs:
 
       - name: End Sonar analysis
         env:
-          SONAR_TOKEN: $SONAR_TOKEN
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
