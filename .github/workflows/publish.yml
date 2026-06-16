@@ -34,7 +34,7 @@ jobs:
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841  # v1
         with:
           usernameVar: NUGET_USER
-          passwordVar: NUGET_TOKEN
+          tokenVar: NUGET_TOKEN
 
       - name: Push to NuGet
-        run: dotnet nuget push ./nupkg/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ env.NUGET_TOKEN }} --skip-duplicate
+        run: dotnet nuget push ./nupkg/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
