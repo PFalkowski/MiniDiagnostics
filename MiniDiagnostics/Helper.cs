@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,75 +7,62 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Principal;
+
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using Extensions.Standard;
-using Microsoft.VisualBasic.Devices;
 using Microsoft.Win32;
-using MiniDiagnostics.Properties;
 
 namespace MiniDiagnostics
 {
     public static class Helper
     {
+        private const string InfoUnavailable = "n/a";
 
-        public static string GetHklmValue(string path, string key)
+        public static string? GetHklmValue(string path, string key)
         {
-            using (var rKey = Registry.LocalMachine.OpenSubKey(path, RegistryKeyPermissionCheck.ReadSubTree))
-            {
-                return (string)rKey?.GetValue(key);
-            }
+            using var rKey = Registry.LocalMachine.OpenSubKey(path, RegistryKeyPermissionCheck.ReadSubTree);
+            return (string?)rKey?.GetValue(key);
         }
 
         internal static string GetHklmValues(RegistryKey subKey)
         {
             var stb = new StringBuilder();
-            if (subKey != null)
-                foreach (var valueName in subKey.GetValueNames())
-                {
-                    stb.AppendLine(subKey.GetValueKind(valueName) == RegistryValueKind.Binary
-                        ? $"{valueName}: {string.Join("", (byte[])subKey.GetValue(valueName))}"
-                        : $"{valueName}: {subKey.GetValue(valueName)}");
-                }
-
+            foreach (var valueName in subKey.GetValueNames())
+            {
+                stb.AppendLine(subKey.GetValueKind(valueName) == RegistryValueKind.Binary
+                    ? $"{valueName}: {string.Join("", (byte[])subKey.GetValue(valueName)!)}"
+                    : $"{valueName}: {subKey.GetValue(valueName)}");
+            }
             return stb.ToString();
         }
 
-        internal static string ReadHklmSubTree(string path)
+        internal static string? ReadHklmSubTree(string path)
         {
             var stb = new StringBuilder();
-            using (var rKey = Registry.LocalMachine.OpenSubKey(path, RegistryKeyPermissionCheck.ReadSubTree))
+            using var rKey = Registry.LocalMachine.OpenSubKey(path, RegistryKeyPermissionCheck.ReadSubTree);
+            if (rKey == null) return null;
+
+            if (rKey.ValueCount != 0) stb.Append(GetHklmValues(rKey));
+
+            if (rKey.SubKeyCount != 0)
             {
-                if (rKey == null)
+                foreach (var subKeyName in rKey.GetSubKeyNames())
                 {
-                    return null;
-                }
-
-                if (rKey.ValueCount != 0)
-                {
-                    stb.Append(GetHklmValues(rKey));
-                }
-
-                if (rKey.SubKeyCount != 0)
-                {
-                    foreach (var subKeyName in rKey.GetSubKeyNames())
-                    {
-                        stb.Append(ReadHklmSubTree(Path.Combine(path, subKeyName)));
-                    }
+                    stb.Append(ReadHklmSubTree(Path.Combine(path, subKeyName)));
                 }
             }
 
             return stb.ToString();
         }
 
-        /// <summary>
-        ///     Get executing assembly globally unique identifier.
-        /// </summary>
-        public static string ExecutingAssemblyGuid
-            =>
-                ((GuidAttribute)Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(GuidAttribute), true)[0])
-                .Value;
+        /// <summary>Get executing assembly globally unique identifier, or an empty string if no Guid attribute is present.</summary>
+        public static string ExecutingAssemblyGuid =>
+            Assembly.GetExecutingAssembly()
+                .GetCustomAttributes(typeof(GuidAttribute), true)
+                .OfType<GuidAttribute>()
+                .FirstOrDefault()
+                ?.Value ?? string.Empty;
 
         public static string ExecutingAssemblyName
         {
@@ -85,7 +72,6 @@ namespace MiniDiagnostics
                 try
                 {
                     result = Path.GetFileName(Assembly.GetExecutingAssembly().Location);
-
                     if (string.IsNullOrWhiteSpace(result))
                     {
                         result = AppDomain.CurrentDomain.FriendlyName;
@@ -94,9 +80,8 @@ namespace MiniDiagnostics
                 catch (Exception ex) when (ex is ArgumentException || ex is AppDomainUnloadedException ||
                                            ex is NotSupportedException)
                 {
-                    result = Settings.Default.InfoUnavailable;
+                    result = InfoUnavailable;
                 }
-
                 return result;
             }
         }
@@ -105,11 +90,11 @@ namespace MiniDiagnostics
         {
             get
             {
-                string result = Settings.Default.InfoUnavailable;
+                string result = InfoUnavailable;
                 try
                 {
-                    result = GetHklmValue(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
-                    if (!string.IsNullOrEmpty(result))
+                    result = GetHklmValue(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName") ?? InfoUnavailable;
+                    if (!string.IsNullOrEmpty(result) && result != InfoUnavailable)
                     {
                         var csdVersion = GetHklmValue(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CSDVersion");
                         return string.Concat(
@@ -121,37 +106,27 @@ namespace MiniDiagnostics
                 catch (Exception ex) when (ex is ObjectDisposedException || ex is SecurityException ||
                                            ex is UnauthorizedAccessException)
                 {
-                    return Settings.Default.InfoUnavailable;
+                    return InfoUnavailable;
                 }
-
                 return result;
             }
         }
 
-        internal static string GetAllPerformanceCountersFor(string Category, string InstanceName = null)
+        internal static string GetAllPerformanceCountersFor(string category, string? instanceName = null)
         {
             var stb = new StringBuilder();
-            var performanceCounterCategories = PerformanceCounterCategory.GetCategories().FirstOrDefault(cat => cat.CategoryName == Category);
-            PerformanceCounter[] counters = null;
-            if (InstanceName != null)
+            var cat = PerformanceCounterCategory.GetCategories().FirstOrDefault(c => c.CategoryName == category);
+            if (cat == null) return stb.ToString();
+            var counters = instanceName != null ? cat.GetCounters(instanceName) : cat.GetCounters();
+            stb.AppendLine($"Displaying performance counters for {category} category:\n");
+            foreach (var counter in counters)
             {
-                counters = performanceCounterCategories.GetCounters(InstanceName);
+                stb.AppendLine(counter.CounterName);
             }
-            else
-            {
-                counters = performanceCounterCategories.GetCounters();
-            }
-            stb.AppendLine($"Displaying performance counters for {Category} category:\n");
-            foreach (PerformanceCounter performanceCounter in counters)
-            {
-                stb.AppendLine(performanceCounter.CounterName);
-            }
-
             return stb.ToString();
         }
-        /// <summary>
-        ///     Try fetching operating system (OS) name from various locations until attempts fail or possibilities exhaust.
-        /// </summary>
+
+        /// <summary>Try fetching OS name from various locations until attempts fail or possibilities exhaust.</summary>
         public static string OsName
         {
             get
@@ -159,44 +134,25 @@ namespace MiniDiagnostics
                 string result;
                 try
                 {
-                    // Try fetching from registry...
                     result = OsNameFromRegistry;
                 }
                 catch (Exception)
                 {
-                    result = Settings.Default.InfoUnavailable;
+                    result = InfoUnavailable;
                 }
 
-                if (result != Settings.Default.InfoUnavailable)
-                    return result;
+                if (result != InfoUnavailable) return result;
 
-                // Try fetching from VB.ComputerInfo...
-                try
-                {
-                    result = Performance.ComputerInfo.Value.OSFullName;
-                }
-                catch (SecurityException)
-                {
-                    result = Settings.Default.InfoUnavailable;
-                }
-
-                if (result != Settings.Default.InfoUnavailable)
-                    return result;
-
-                // Try fetching from Environment...
                 try
                 {
                     result = Environment.OSVersion.VersionString;
                 }
                 catch (InvalidOperationException)
                 {
-                    result = Settings.Default.InfoUnavailable;
+                    result = InfoUnavailable;
                 }
 
-                if (result != Settings.Default.InfoUnavailable)
-                    return result;
-                // Give up..
-                return Settings.Default.InfoUnavailable;
+                return result;
             }
         }
 
@@ -206,11 +162,11 @@ namespace MiniDiagnostics
             {
                 try
                 {
-                    return GetHklmValue(@"Hardware\Description\System\CentralProcessor\0", "ProcessorNameString");
+                    return GetHklmValue(@"Hardware\Description\System\CentralProcessor\0", "ProcessorNameString") ?? InfoUnavailable;
                 }
                 catch (Exception)
                 {
-                    return Settings.Default.InfoUnavailable;
+                    return InfoUnavailable;
                 }
             }
         }
@@ -231,17 +187,14 @@ namespace MiniDiagnostics
                             driveInfo.DriveFormat, Environment.NewLine, driveInfo.TotalSize.AsMemory(),
                             driveInfo.AvailableFreeSpace.AsMemory());
                     }
-
                     drives.Add(infoBuilder.ToString());
                 }
-
                 return drives;
             }
         }
 
         public static TimeSpan TimeFromStartupEnvironment =>
             TimeSpan.FromMilliseconds(Environment.TickCount & int.MaxValue);
-
 
         public static string ThreadPoolStatus
         {
@@ -255,14 +208,11 @@ namespace MiniDiagnostics
             }
         }
 
-        /// <summary>
-        ///     Returns true if current user is elevated admin. See http://stackoverflow.com/a/1089061/3922292 for reference.
-        /// </summary>
-        /// <returns></returns>
+        /// <summary>Returns true if current user is elevated admin.</summary>
         public static bool IsAdminElevated()
         {
             bool isAdmin;
-            WindowsIdentity user = null;
+            WindowsIdentity? user = null;
             try
             {
                 user = WindowsIdentity.GetCurrent();
@@ -281,9 +231,7 @@ namespace MiniDiagnostics
             {
                 user?.Dispose();
             }
-
             return isAdmin;
         }
     }
 }
-
